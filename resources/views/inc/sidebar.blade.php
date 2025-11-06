@@ -17,7 +17,7 @@
                 </a>
                 <ul id="forms-nav" class="nav-content collapse " data-bs-parent="#sidebar-nav">
                     <li>
-                        <a href="forms-elements.html">
+                        <a href="{{ route('order.index') }}">
                             <i class="bi bi-circle"></i><span>view All</span>
                         </a>
                     </li>

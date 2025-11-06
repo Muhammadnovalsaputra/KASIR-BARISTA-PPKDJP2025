@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\UserDetail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
 use RealRashid\SweetAlert\Facades\Alert;
 
@@ -17,7 +19,8 @@ class ProfileController extends Controller
     {
         $title = "profile";
         $user = Auth::user();
-        return view('profile.index', compact('title', 'user'));
+        $userDetail = Auth::user()->userDetail;
+        return view('profile.index', compact('title', 'user', 'userDetail'));
     }
     public function changePassword(Request $request)
     {
@@ -38,6 +41,52 @@ class ProfileController extends Controller
 
         alert()->success('Success', 'The Change Password Success!!');
         return redirect()->to('profile');
+    }
+
+    public function changeProfile(Request $request)
+    {
+
+        $user = Auth::user();
+        $photoPath = "";
+
+        if ($request->hasFile('photo')) {
+            $photo = $request->file('photo');
+
+            if ($user->userDetail && $user->userDetail->photo) {
+                File::delete(public_path('storage/' . $user->userDetail->photo));
+            }
+            // storage/app/public/profiles
+            $photoPath = $photo->store('profiles', 'public');
+
+            # code...
+        }
+
+        try {
+            UserDetail::upsert(
+                [
+                    [
+                        'user_id' => $user->id,
+                        'about' => $request->about,
+                        'company' => $request->company,
+                        'phone' => $request->phone,
+                        'address' => $request->address,
+                        'job' => $request->job,
+                        'photo' => $photoPath ?? ($user->userDetail->photo ?? '')
+                    ],
+                ],
+                ['user_id'],
+                ['phone', 'about', 'address', 'company', 'job', 'photo']
+
+
+            );
+            alert()->success('Success', 'Edit Profile Success!');
+            return redirect()->to('profile');
+            //code...
+        } catch (\Throwable $th) {
+            //throw $th;
+            alert()->error('error', $th->getMessage());
+            return redirect()->to('profile');
+        }
     }
     /**
      * Show the form for creating a new resource.

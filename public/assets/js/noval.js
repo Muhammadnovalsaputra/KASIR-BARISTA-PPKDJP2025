@@ -75,48 +75,54 @@
 // card.appendChild(p);
 
 let currentCategory = "all";
+let products = [];
 
 function filterCategory(category, event) {
-  currentCategory = category;
+    currentCategory = category;
 
-  let buttons = document.querySelectorAll(".category-btn");
-  buttons.forEach((btn) => {
-    btn.classList.remove("active");
-    btn.classList.remove("btn-primary");
-    btn.classList.add("btn-outline-primary");
-  });
-  event.classList.add("active");
-  event.classList.remove("btn-outline-primary");
-  event.classList.add("btn-primary");
-  console.log({
-    currentCategory: currentCategory,
-    category: category,
-    event: event,
-  });
-  renderProducts();
+    let buttons = document.querySelectorAll(".category-btn");
+    buttons.forEach((btn) => {
+        btn.classList.remove("active");
+        btn.classList.remove("btn-primary");
+        btn.classList.add("btn-outline-primary");
+    });
+    event.classList.add("active");
+    event.classList.remove("btn-outline-primary");
+    event.classList.add("btn-primary");
+    console.log({
+        currentCategory: currentCategory,
+        category: category,
+        event: event,
+    });
+    renderProducts();
 }
 
-function renderProducts(searchProduct = "") {
-  const productGrid = document.getElementById("productGrid");
-  productGrid.innerHTML = "";
-  // console.log(products);
+async function renderProducts(searchProduct = "") {
+    const productGrid = document.getElementById("productGrid");
+    productGrid.innerHTML = "";
+    // console.log(products);
 
-  // filter
-  const filtered = products.filter((p) => {
-    // shorthand / ternery
-    const matchCategory =
-      currentCategory === "all" || p.category_name === currentCategory;
-    const matchSearch = p.product_name.toLowerCase().includes(searchProduct);
-    return matchCategory && matchSearch;
-  });
+    const response = await fetch("/order/get-products");
+    products = await response.json();
 
-  // munculin data dari table products
-  filtered.forEach((product) => {
-    console.log(product);
+    // filter
+    const filtered = products.filter((p) => {
+        // shorthand / ternery
+        const matchCategory =
+            currentCategory === "all" || p.category_name === currentCategory;
+        const matchSearch = p.product_name
+            .toLowerCase()
+            .includes(searchProduct);
+        return matchCategory && matchSearch;
+    });
 
-    const col = document.createElement("div");
-    col.className = "col-md-4 col-sm-6";
-    col.innerHTML = `<div class="card product-card" onclick="addToCart(${product.id})">
+    // munculin data dari table products
+    filtered.forEach((product) => {
+        console.log(product);
+
+        const col = document.createElement("div");
+        col.className = "col-md-4 col-sm-6";
+        col.innerHTML = `<div class="card product-card" onclick="addToCart(${product.id})">
     <div class="product-img">
     <img src="../${product.product_photo}" width="100%">
     </div>
@@ -126,127 +132,135 @@ function renderProducts(searchProduct = "") {
     <p class="card-text text-primary fw-bold">Rp. ${product.product_price}</p>
     </div>
     </div>`;
-    productGrid.appendChild(col);
-  });
+        productGrid.appendChild(col);
+    });
 }
 
 // hapus item cart
 function removeItem(id) {
-  cart = cart.filter((p) => p.id != id);
-  renderCart();
+    cart = cart.filter((p) => p.id != id);
+    renderCart();
 }
 // mengatur qty item cart
 function changeQty(id, x) {
-  const item = cart.find((p) => p.id == id);
-  if (!item) {
-    return;
-  }
-  item.quantity += x;
-  if (item.quantity <= 0) {
-    alert("minimal harus 1 product");
-    // cart = filter((p) => p.id != id);
-  }
-  renderCart();
+    const item = cart.find((p) => p.id == id);
+    if (!item) {
+        return;
+    }
+    item.quantity += x;
+    if (item.quantity <= 0) {
+        alert("minimal harus 1 product");
+        // cart = filter((p) => p.id != id);
+    }
+    renderCart();
 }
 
 function updateTotal() {
-  const subTotal = cart.reduce(
-    (sum, item) => sum + item.product_price * item.quantity,
-    0
-  );
-  const tax = subTotal * 0.1;
-  const total = tax + subTotal;
+    const subTotal = cart.reduce(
+        (sum, item) => sum + item.product_price * item.quantity,
+        0
+    );
+    const tax = subTotal * 0.1;
+    const total = tax + subTotal;
 
-  document.getElementById(
-    "Subtotal"
-  ).textContent = `Rp. ${subTotal.toLocaleString()}`;
-  document.getElementById("tax").textContent = `Rp. ${tax.toLocaleString()}`;
-  document.getElementById(
-    "total"
-  ).textContent = `Rp. ${total.toLocaleString()}`;
-  document.getElementById("subtotal_value").value = subTotal;
-  document.getElementById("tax_value").value = tax;
-  document.getElementById("total_value").value = total;
+    document.getElementById(
+        "Subtotal"
+    ).textContent = `Rp. ${subTotal.toLocaleString()}`;
+    document.getElementById("tax").textContent = `Rp. ${tax.toLocaleString()}`;
+    document.getElementById(
+        "total"
+    ).textContent = `Rp. ${total.toLocaleString()}`;
+    document.getElementById("subtotal_value").value = subTotal;
+    document.getElementById("tax_value").value = tax;
+    document.getElementById("total_value").value = total;
 
-  // console.log(subTotal);
-  // console.log(tax);
-  // console.log(total);
+    // console.log(subTotal);
+    // console.log(tax);
+    // console.log(total);
 }
 
 // clearCart
 document.getElementById("clearCart").addEventListener("click", function () {
-  cart = [];
-  renderCart();
+    cart = [];
+    renderCart();
 });
 
 // ngelampar ke php subtotalnya
 async function processPayment() {
-  if (cart.length === 0) {
-    alert("The cart is still empty");
-    return;
-  }
-
-  const order_code = document.querySelector(".orderNumber").textContent.trim();
-  const subtotal = document.querySelector("#subtotal_value").value.trim();
-  const tax = document.querySelector("#tax_value").value.trim();
-  const grandTotal = document.querySelector("#total_value").value.trim();
-
-  try {
-    const res = await fetch("add-pos.php?payment", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ cart, order_code, subtotal, tax, grandTotal }),
-    });
-    const data = await res.json();
-    if (data.status == "success") {
-      alert("Transaction success");
-      window.location.href = "print.php";
-    } else {
-      alert("transaction failed: " + data.message);
+    if (cart.length === 0) {
+        alert("The cart is still empty");
+        return;
     }
-  } catch (error) {
-    alert("upss transaction fail");
-    console.log("error:" + error);
-  }
+
+    const order_code = document
+        .querySelector(".orderNumber")
+        .textContent.trim();
+    const subtotal = document.querySelector("#subtotal_value").value.trim();
+    const tax = document.querySelector("#tax_value").value.trim();
+    const grandTotal = document.querySelector("#total_value").value.trim();
+
+    try {
+        const res = await fetch("add-pos.php?payment", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+                cart,
+                order_code,
+                subtotal,
+                tax,
+                grandTotal,
+            }),
+        });
+        const data = await res.json();
+        if (data.status == "success") {
+            alert("Transaction success");
+            window.location.href = "print.php";
+        } else {
+            alert("transaction failed: " + data.message);
+        }
+    } catch (error) {
+        alert("upss transaction fail");
+        console.log("error:" + error);
+    }
 }
 
 let cart = [];
 function addToCart(id) {
-  const product = products.find((p) => p.id == id);
+    const product = products.find((p) => p.id == id);
 
-  if (!product) {
-    return;
-  }
-  // mengecek apakah produknya sudah ada cart atau belum
-  const existing = cart.find((item) => item.id == id);
-  if (existing) {
-    existing.quantity += 1;
-  } else {
-    cart.push({ ...product, quantity: 1 });
-  }
-  renderCart();
+    if (!product) {
+        return;
+    }
+    // mengecek apakah produknya sudah ada cart atau belum
+    const existing = cart.find((item) => item.id == id);
+    if (existing) {
+        existing.quantity += 1;
+    } else {
+        cart.push({ ...product, quantity: 1 });
+    }
+    renderCart();
 }
 
 function renderCart() {
-  const cartContainer = document.querySelector("#cartItems");
-  cartContainer.innerHTML = "";
+    const cartContainer = document.querySelector("#cartItems");
+    cartContainer.innerHTML = "";
 
-  if (cart.length === 0) {
-    cartContainer.innerHTML = `
+    if (cart.length === 0) {
+        cartContainer.innerHTML = `
       <div class="cart-items" id="cartItems">
       <div class="text-center text-muted mt-5">
       <i class="bi bi-cart mb-3"></i>
       <p>Cart Empty</p>
       </div>
       </div>`;
-    updateTotal();
-    // return;
-  }
-  cart.forEach((item, index) => {
-    const div = document.createElement("div");
-    div.className =
-      "cart-item d-flex justify-content-between align-items-center mb-2";
-    div.innerHTML = `
+        updateTotal();
+        // return;
+    }
+    cart.forEach((item, index) => {
+        const div = document.createElement("div");
+        div.className =
+            "cart-item d-flex justify-content-between align-items-center mb-2";
+        div.innerHTML = `
         <div>
                     <strong>${item.product_name}</strong>
                     <small>${item.product_price}</small>
@@ -260,9 +274,9 @@ function renderCart() {
                     </button>
                 </div>`;
 
-    cartContainer.appendChild(div);
-  });
-  updateTotal();
+        cartContainer.appendChild(div);
+    });
+    updateTotal();
 }
 
 // useEffect(() => {
@@ -272,10 +286,10 @@ function renderCart() {
 renderProducts();
 
 document
-  .getElementById("searchProduct")
-  .addEventListener("input", function (e) {
-    const searchProduct = e.target.value.toLowerCase();
-    renderProducts(searchProduct);
-    // console.log(searchProduct);
-    // alert("eyy");
-  });
+    .getElementById("searchProduct")
+    .addEventListener("input", function (e) {
+        const searchProduct = e.target.value.toLowerCase();
+        renderProducts(searchProduct);
+        // console.log(searchProduct);
+        // alert("eyy");
+    });
