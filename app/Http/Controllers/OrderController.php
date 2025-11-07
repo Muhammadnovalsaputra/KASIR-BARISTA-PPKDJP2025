@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\order_detail;
 use App\Models\User;
 use App\Models\category;
 use App\Models\order;
 use App\Models\product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Midtrans\Config;
+use Midtrans\Snap;
 use Termwind\Components\Raw;
 
 class OrderController extends Controller
@@ -47,31 +51,93 @@ class OrderController extends Controller
         return view('order.create', compact('categories', 'order_code'));
     }
 
-    public function getProducts(Request $request)
-    {
-        try {
-            $products = product::with('category')->get();
-            return response()->json([
-                'message' => 'Fetch Product Success',
-                'status' => true,
-                'data' => $products
-            ]);
-            //code...
-        } catch (\Throwable $th) {
-            //throw $th;
-            return response()->json([
-                'message' => 'Fetch Product Failed',
-                'status' => false,
-                'error' => $th->getMessage()
-            ], 500);
-        }
-    }
+
     /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
     {
         //
+        try {
+            DB::beginTransaction();
+
+            $order = order::create([
+                'order_code' => $request->order_code,
+                'order_amount' => $request->subTotal,
+                'order_status' => 1,
+                'order_subtotal' => $request->grandTotal
+            ]);
+
+
+            foreach ($request->cart as $item) {
+                order_detail::insert([
+                    'order_id' => $order->id,
+                    'product_id' => $item['id'],
+                    'qty' => $item['quantity'],
+                    'order_price' => $item['product_price'],
+                ]);
+            }
+
+            DB::commit();
+            return response()->json([
+                'status' => 'success',
+                'order_code' => $request->order_code
+            ]);
+        } catch (\Throwable $th) {
+            //throw $th;
+            DB::rollBack();
+            return response()->json([
+                'status' => 'error',
+                'massage' => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function paymentCashless(Request $request)
+    {
+        try {
+            Config::$serverKey = config('services.midtrans.server_Key');
+            Config::$isProduction = config('services.midtrans.is_production');
+            Config::$isSanitized = config('services.midtrans.is_sanitized');
+            Config::$is3ds = config('services.midtrans.is_3ds');
+
+            $itemDetails = [];
+            foreach ($request->cart as $item) {
+                $itemDetails[] = [
+                    'id' => $item['id'],
+                    'price' => $item['product_price'],
+                    'quantity' => $item['quantity'],
+                    'name' => substr($item['product_name'], 0, 50),
+                ];
+            }
+
+            $payload = [
+                'transaction_details' => [
+                    'order_id' => $request->order_code,
+                    'gross_amount' => $request->grandTotal
+                ],
+                'customer_details' => [
+                    'first_name' => 'Customer',
+                    'email' => 'customer@gmail.com',
+                ],
+                'item_details' => $itemDetails,
+
+            ];
+
+            $snapToken = Snap::getSnapToken($payload);
+
+            return response()->json([
+                'status' => 'success',
+                'order_code' => $request->order_code
+            ]);
+        } catch (\Throwable $th) {
+
+            return response()->json([
+                'status' => 'error',
+                'massage' => $th->getMessage(),
+            ]);
+            //throw $th;
+        }
     }
 
     /**
@@ -104,5 +170,22 @@ class OrderController extends Controller
     public function destroy(string $id)
     {
         //
+    }
+
+    public function getProducts()
+    {
+        try {
+            $products = product::with('category')->get();
+            return response()->json($products);
+
+            //code...
+        } catch (\Throwable $th) {
+            //throw $th;
+            return response()->json([
+                'message' => 'Fetch Product Failed',
+                'status' => false,
+                'error' => $th->getMessage()
+            ], 500);
+        }
     }
 }

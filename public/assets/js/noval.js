@@ -102,14 +102,15 @@ async function renderProducts(searchProduct = "") {
     productGrid.innerHTML = "";
     // console.log(products);
 
-    const response = await fetch("/order/get-products");
+    const response = await fetch("/get-products");
     products = await response.json();
 
     // filter
     const filtered = products.filter((p) => {
         // shorthand / ternery
         const matchCategory =
-            currentCategory === "all" || p.category_name === currentCategory;
+            currentCategory === "all" ||
+            p.category.category_name === currentCategory;
         const matchSearch = p.product_name
             .toLowerCase()
             .includes(searchProduct);
@@ -124,10 +125,10 @@ async function renderProducts(searchProduct = "") {
         col.className = "col-md-4 col-sm-6";
         col.innerHTML = `<div class="card product-card" onclick="addToCart(${product.id})">
     <div class="product-img">
-    <img src="../${product.product_photo}" width="100%">
+    <img src="/storage/${product.product_photo}" width="100%">
     </div>
     <div class="card-body">
-    <span class="badge bg-secondary badge-category">${product.category_name}</span>
+    <span class="badge bg-secondary badge-category">${product.category.category_name}</span>
     <h6 class="card-title mt-2 mb-2">${product.product_name}</h6>
     <p class="card-text text-primary fw-bold">Rp. ${product.product_price}</p>
     </div>
@@ -192,6 +193,13 @@ async function processPayment() {
         return;
     }
 
+    const modal = new bootstrap.Modal(document.getElementById("exampleModal"));
+    modal.show();
+}
+
+async function handlePayment(method) {
+    alert("duar");
+    const paymentMethod = document.getElementById("payment_method").value;
     const order_code = document
         .querySelector(".orderNumber")
         .textContent.trim();
@@ -199,28 +207,65 @@ async function processPayment() {
     const tax = document.querySelector("#tax_value").value.trim();
     const grandTotal = document.querySelector("#total_value").value.trim();
 
-    try {
-        const res = await fetch("add-pos.php?payment", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-                cart,
-                order_code,
-                subtotal,
-                tax,
-                grandTotal,
-            }),
-        });
-        const data = await res.json();
-        if (data.status == "success") {
-            alert("Transaction success");
-            window.location.href = "print.php";
-        } else {
-            alert("transaction failed: " + data.message);
+    if (paymentMethod == "cash") {
+        try {
+            const res = await fetch("/order", {
+                method: "POST",
+                headers: {
+                    "content-type": "application/json",
+                    "X-CSRF-TOKEN": document.querySelector(
+                        'meta[name="csrf-token"]'
+                    ).content,
+                },
+                body: JSON.stringify({
+                    cart,
+                    order_code,
+                    subtotal,
+                    tax,
+                    grandTotal,
+                }),
+            });
+
+            const data = await res.json();
+            if (data.status == "success") {
+                alert("Transaction success");
+                window.location.href = "order";
+            } else {
+                alert("transaction failed: " + data.message);
+            }
+        } catch (error) {
+            alert("upss transaction fail");
+            console.log("error:" + error);
         }
-    } catch (error) {
-        alert("upss transaction fail");
-        console.log("error:" + error);
+    } else if (paymentMethod == "cashless") {
+        try {
+            const res = await fetch("/order/cashless", {
+                method: "POST",
+                headers: {
+                    "content-type": "application/json",
+                    "X-CSRF-TOKEN": document.querySelector(
+                        'meta[name="csrf-token"]'
+                    ).content,
+                },
+                body: JSON.stringify({
+                    cart,
+                    order_code,
+                    subtotal,
+                    tax,
+                    grandTotal,
+                }),
+            });
+
+            const data = await res.json();
+            if (data.status == "success") {
+                window.snap.pay(data.snapToken);
+            } else {
+                alert("transaction failed: " + data.message);
+            }
+        } catch (error) {
+            alert("upss transaction fail");
+            console.log("error:" + error);
+        }
     }
 }
 
@@ -262,14 +307,25 @@ function renderCart() {
             "cart-item d-flex justify-content-between align-items-center mb-2";
         div.innerHTML = `
         <div>
-                    <strong>${item.product_name}</strong>
-                    <small>${item.product_price}</small>
+                    <img src='/storage/${
+                        item.product_photo
+                    }' width='100' style='border-radius: 100%;'></img>
+                    <strong class='mb-1'>${item.product_name}</strong>
+                    <small class='text-muted'>Rp. ${item.product_price.toLocaleString(
+                        "id-ID"
+                    )}</small>
                 </div>
                 <div class="d-flex align-items-center m-5 gap-2">
-                    <button class="btn btn-outline-secondary me-2" onclick="changeQty(${item.id}, -1)">-</button>
+                    <button class="btn btn-outline-secondary me-2" onclick="changeQty(${
+                        item.id
+                    }, -1)">-</button>
                     <span>${item.quantity}</span>
-                    <button class="btn btn-outline-secondary ms-3" onclick="changeQty(${item.id}, 1)">+</button>
-                    <button class="btn btn-sm btn-danger ms-3" onclick="removeItem(${item.id})">
+                    <button class="btn btn-outline-secondary ms-3" onclick="changeQty(${
+                        item.id
+                    }, 1)">+</button>
+                    <button class="btn btn-sm btn-danger ms-3" onclick="removeItem(${
+                        item.id
+                    })">
                         <i class="bi bi-trash"></i>
                     </button>
                 </div>`;
